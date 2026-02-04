@@ -1,0 +1,312 @@
+#!/usr/bin/env node
+
+import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
+import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
+import { z } from "zod";
+
+// ─── Configuration ───────────────────────────────────────────────────────────
+
+const API_KEY = process.env.REFINORE_API_KEY;
+const API_URL =
+  process.env.REFINORE_API_URL || "https://automine.refinore.com/api";
+
+// ─── API Helper ──────────────────────────────────────────────────────────────
+
+async function apiCall(
+  method: "GET" | "POST",
+  path: string,
+  body?: Record<string, unknown>,
+  requireAuth = true
+): Promise<unknown> {
+  if (requireAuth && !API_KEY) {
+    throw new Error(
+      "REFINORE_API_KEY environment variable is not set. " +
+        "Get your API key at https://automine.refinore.com"
+    );
+  }
+
+  const url = `${API_URL}${path}`;
+  const headers: Record<string, string> = {
+    "Content-Type": "application/json",
+    "User-Agent": "refinore-mcp/1.0.0",
+  };
+
+  if (API_KEY) {
+    headers["Authorization"] = `Bearer ${API_KEY}`;
+  }
+
+  const options: RequestInit = { method, headers };
+
+  if (body && method === "POST") {
+    options.body = JSON.stringify(body);
+  }
+
+  console.error(`[refinore-mcp] ${method} ${path}`);
+
+  const response = await fetch(url, options);
+
+  if (!response.ok) {
+    const errorText = await response.text().catch(() => "Unknown error");
+    throw new Error(
+      `refinORE API error ${response.status}: ${errorText}`
+    );
+  }
+
+  return response.json();
+}
+
+// ─── Format Response ─────────────────────────────────────────────────────────
+
+function formatResult(data: unknown): { content: Array<{ type: "text"; text: string }> } {
+  return {
+    content: [
+      {
+        type: "text" as const,
+        text: JSON.stringify(data, null, 2),
+      },
+    ],
+  };
+}
+
+// ─── MCP Server ──────────────────────────────────────────────────────────────
+
+const server = new McpServer({
+  name: "refinore-mcp",
+  version: "1.0.0",
+});
+
+// ─── Tool 1: get_account_info ────────────────────────────────────────────────
+
+server.tool(
+  "get_account_info",
+  "Get your refinORE account info including Solana wallet address and deposit instructions. Call this first to discover your wallet.",
+  {},
+  async () => {
+    const data = await apiCall("GET", "/account/me");
+    return formatResult(data);
+  }
+);
+
+// ─── Tool 2: start_mining ────────────────────────────────────────────────────
+
+server.tool(
+  "start_mining",
+  "Start a new ORE mining session on refinORE. Deploys SOL/USDC/ORE across squares on the mining grid. Configure amount, number of squares, token, risk tolerance, and tile selection strategy.",
+  {
+    wallet_address: z.string().describe("Your Solana wallet address"),
+    sol_amount: z
+      .number()
+      .default(0.01)
+      .describe("Amount to deploy per round (default: 0.01)"),
+    num_squares: z
+      .number()
+      .default(15)
+      .describe("Number of grid squares to mine (default: 15)"),
+    mining_token: z
+      .enum(["SOL", "USDC", "ORE", "stORE", "SKR"])
+      .default("SOL")
+      .describe("Token to use for mining (default: SOL)"),
+    risk_tolerance: z
+      .enum(["low", "medium", "high"])
+      .default("medium")
+      .describe("Risk tolerance level (default: medium)"),
+    tile_selection_mode: z
+      .enum(["optimal", "random", "custom"])
+      .default("optimal")
+      .describe("Tile selection strategy (default: optimal)"),
+  },
+  async (params) => {
+    const data = await apiCall("POST", "/mining/start", {
+      wallet_address: params.wallet_address,
+      sol_amount: params.sol_amount,
+      num_squares: params.num_squares,
+      mining_token: params.mining_token,
+      risk_tolerance: params.risk_tolerance,
+      tile_selection_mode: params.tile_selection_mode,
+    });
+    return formatResult(data);
+  }
+);
+
+// ─── Tool 3: stop_mining ─────────────────────────────────────────────────────
+
+server.tool(
+  "stop_mining",
+  "Stop an active ORE mining session. Optionally specify a session ID, or stop the current active session.",
+  {
+    session_id: z
+      .string()
+      .optional()
+      .describe("Session ID to stop (optional — stops active session if omitted)"),
+  },
+  async (params) => {
+    const body: Record<string, unknown> = {};
+    if (params.session_id) {
+      body.session_id = params.session_id;
+    }
+    const data = await apiCall("POST", "/mining/stop", body);
+    return formatResult(data);
+  }
+);
+
+// ─── Tool 4: get_mining_session ──────────────────────────────────────────────
+
+server.tool(
+  "get_mining_session",
+  "Get the status of your current active mining session, including stats and current round info.",
+  {},
+  async () => {
+    const data = await apiCall("GET", "/mining/session");
+    return formatResult(data);
+  }
+);
+
+// ─── Tool 5: get_mining_history ──────────────────────────────────────────────
+
+server.tool(
+  "get_mining_history",
+  "Get your past mining rounds history. Returns an array of completed mining rounds with results and earnings.",
+  {
+    limit: z
+      .number()
+      .default(20)
+      .describe("Maximum number of rounds to return (default: 20)"),
+  },
+  async (params) => {
+    const data = await apiCall("GET", `/mining/history?limit=${params.limit}`);
+    return formatResult(data);
+  }
+);
+
+// ─── Tool 6: get_balances ────────────────────────────────────────────────────
+
+server.tool(
+  "get_balances",
+  "Get wallet token balances including SOL, ORE, USDC, stORE, and SKR for a given Solana wallet address.",
+  {
+    wallet_address: z.string().describe("Solana wallet address to check balances for"),
+  },
+  async (params) => {
+    const data = await apiCall(
+      "GET",
+      `/wallet/balances?wallet_address=${encodeURIComponent(params.wallet_address)}`
+    );
+    return formatResult(data);
+  }
+);
+
+// ─── Tool 7: get_rewards ─────────────────────────────────────────────────────
+
+server.tool(
+  "get_rewards",
+  "Get unclaimed rewards for a wallet — includes unclaimed SOL, unrefined ORE, and bonus ORE.",
+  {
+    wallet_address: z.string().describe("Solana wallet address to check rewards for"),
+  },
+  async (params) => {
+    const data = await apiCall(
+      "GET",
+      `/rewards?wallet_address=${encodeURIComponent(params.wallet_address)}`
+    );
+    return formatResult(data);
+  }
+);
+
+// ─── Tool 8: get_current_round ───────────────────────────────────────────────
+
+server.tool(
+  "get_current_round",
+  "Get the current mining round info — round number, time remaining, total deployed, motherlode, and expected value. This is a public endpoint (no auth required).",
+  {},
+  async () => {
+    const data = await apiCall("GET", "/rounds/current", undefined, false);
+    return formatResult(data);
+  }
+);
+
+// ─── Tool 9: list_strategies ─────────────────────────────────────────────────
+
+server.tool(
+  "list_strategies",
+  "List all your saved auto-mining strategies. Strategies define reusable mining configurations.",
+  {},
+  async () => {
+    const data = await apiCall("GET", "/auto-strategies");
+    return formatResult(data);
+  }
+);
+
+// ─── Tool 10: create_strategy ────────────────────────────────────────────────
+
+server.tool(
+  "create_strategy",
+  "Create a new auto-mining strategy with a name and mining parameters. Strategies can be started later with start_strategy.",
+  {
+    name: z.string().describe("Name for this strategy"),
+    solAmount: z.number().describe("Amount to deploy per round"),
+    numSquares: z.number().describe("Number of grid squares to mine"),
+    miningToken: z
+      .string()
+      .describe("Token to mine with (SOL, USDC, ORE, stORE, SKR)"),
+    riskTolerance: z
+      .string()
+      .describe("Risk tolerance (low, medium, high)"),
+  },
+  async (params) => {
+    const data = await apiCall("POST", "/auto-strategies", {
+      name: params.name,
+      solAmount: params.solAmount,
+      numSquares: params.numSquares,
+      miningToken: params.miningToken,
+      riskTolerance: params.riskTolerance,
+    });
+    return formatResult(data);
+  }
+);
+
+// ─── Tool 11: start_strategy ─────────────────────────────────────────────────
+
+server.tool(
+  "start_strategy",
+  "Start mining using a saved strategy. Launches an auto-mining session with the strategy's predefined parameters.",
+  {
+    strategy_id: z.string().describe("ID of the strategy to start"),
+  },
+  async (params) => {
+    const data = await apiCall("POST", "/mining/start-strategy", {
+      strategy_id: params.strategy_id,
+    });
+    return formatResult(data);
+  }
+);
+
+// ─── Tool 12: get_staking_info ───────────────────────────────────────────────
+
+server.tool(
+  "get_staking_info",
+  "Get staking information for a wallet — stORE balance, current APR, and pending staking rewards.",
+  {
+    wallet_address: z.string().describe("Solana wallet address to check staking info for"),
+  },
+  async (params) => {
+    const data = await apiCall(
+      "GET",
+      `/staking/info?wallet_address=${encodeURIComponent(params.wallet_address)}`
+    );
+    return formatResult(data);
+  }
+);
+
+// ─── Start Server ────────────────────────────────────────────────────────────
+
+async function main() {
+  const transport = new StdioServerTransport();
+  console.error("[refinore-mcp] Starting refinORE MCP server...");
+  await server.connect(transport);
+  console.error("[refinore-mcp] Server connected and ready");
+}
+
+main().catch((error) => {
+  console.error("[refinore-mcp] Fatal error:", error);
+  process.exit(1);
+});
