@@ -25,6 +25,10 @@ And it does it.
 
 Works with **Cursor**, **Claude Desktop**, **Windsurf**, **Cline**, and any MCP-compatible client.
 
+**Other Options:**
+- 🔨 **CLI Tool:** [refinore-cli](https://github.com/JussCubs/refinore-cli) — `npx -y refinore-cli --auto-mine` (for terminal users)
+- 🤖 **OpenClaw Skill:** [ore-miner-skills](https://github.com/JussCubs/ore-miner-skills) — For OpenClaw/Clawdbot agents
+
 ---
 
 ## Quick Start
