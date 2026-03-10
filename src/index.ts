@@ -13,7 +13,7 @@ const API_URL =
 // ─── API Helper ──────────────────────────────────────────────────────────────
 
 async function apiCall(
-  method: "GET" | "POST",
+  method: "GET" | "POST" | "PATCH" | "DELETE",
   path: string,
   body?: Record<string, unknown>,
   requireAuth = true
@@ -37,7 +37,7 @@ async function apiCall(
 
   const options: RequestInit = { method, headers };
 
-  if (body && method === "POST") {
+  if (body && (method === "POST" || method === "PATCH")) {
     options.body = JSON.stringify(body);
   }
 
@@ -72,7 +72,7 @@ function formatResult(data: unknown): { content: Array<{ type: "text"; text: str
 
 const server = new McpServer({
   name: "refinore-mcp",
-  version: "1.0.0",
+  version: "1.1.0",
 });
 
 // ─── Tool 1: get_account_info ────────────────────────────────────────────────
@@ -292,6 +292,130 @@ server.tool(
     const data = await apiCall(
       "GET",
       `/staking/info?wallet_address=${encodeURIComponent(params.wallet_address)}`
+    );
+    return formatResult(data);
+  }
+);
+
+// ─── Tool 13: get_tile_stats ─────────────────────────────────────────────────
+
+server.tool(
+  "get_tile_stats",
+  "Get hot and cold tile statistics from the last N rounds. Shows which tiles (0-24) have won the most/least — useful for building predictive tile strategies. Public endpoint, no auth required.",
+  {
+    limit: z
+      .number()
+      .default(100)
+      .describe("Number of rounds to analyze (10-500, default: 100)"),
+  },
+  async (params) => {
+    const data = await apiCall(
+      "GET",
+      `/rounds/tile-stats?limit=${params.limit}`,
+      undefined,
+      false
+    );
+    return formatResult(data);
+  }
+);
+
+// ─── Tool 14: get_round_history ─────────────────────────────────────────────
+
+server.tool(
+  "get_round_history",
+  "Get your personal mining round history — every round you deployed in with full details including tiles used, amounts, EV, results, SOL/ORE won, and more. Supports pagination.",
+  {
+    limit: z
+      .number()
+      .default(50)
+      .describe("Number of rounds to return (1-500, default: 50)"),
+    offset: z
+      .number()
+      .default(0)
+      .describe("Offset for pagination (default: 0)"),
+    session_id: z
+      .string()
+      .optional()
+      .describe("Filter to a specific mining session ID (optional)"),
+  },
+  async (params) => {
+    let path = `/rounds/my-history?limit=${params.limit}&offset=${params.offset}`;
+    if (params.session_id) {
+      path += `&session_id=${encodeURIComponent(params.session_id)}`;
+    }
+    const data = await apiCall("GET", path);
+    return formatResult(data);
+  }
+);
+
+// ─── Tool 15: live_edit_strategy ────────────────────────────────────────────
+
+server.tool(
+  "live_edit_strategy",
+  "Live-edit a mining strategy between rounds WITHOUT stopping the session. Only send the fields you want to change — changes take effect on the next deployment round automatically. Perfect for dynamically adjusting tiles, amounts, or thresholds mid-session.",
+  {
+    strategy_id: z.string().describe("ID of the strategy to edit"),
+    sol_amount: z.number().optional().describe("New SOL amount per round"),
+    num_squares: z.number().optional().describe("New number of tiles (1-25)"),
+    tile_selection_mode: z
+      .enum(["optimal", "random", "custom", "odd", "even"])
+      .optional()
+      .describe("New tile selection mode"),
+    custom_tiles: z
+      .array(z.number())
+      .optional()
+      .describe("Custom tile indices (0-24) when mode is 'custom'"),
+    skip_last_winning_square: z
+      .boolean()
+      .optional()
+      .describe("Skip the tile that won last round"),
+    mining_token: z
+      .enum(["SOL", "USDC", "ORE", "stORE", "SKR"])
+      .optional()
+      .describe("Change mining token"),
+    deployment_timing: z
+      .number()
+      .optional()
+      .describe("Deployment timing in seconds (30-55)"),
+    motherlode_threshold: z
+      .number()
+      .optional()
+      .describe("Minimum motherlode ORE to deploy"),
+    max_sol_deployed_threshold: z
+      .number()
+      .optional()
+      .describe("Max total SOL deployed before skipping"),
+  },
+  async (params) => {
+    const { strategy_id, ...updates } = params;
+    // Filter out undefined values
+    const body: Record<string, unknown> = {};
+    for (const [key, value] of Object.entries(updates)) {
+      if (value !== undefined) {
+        body[key] = value;
+      }
+    }
+    const data = await apiCall(
+      "PATCH",
+      `/auto-strategies/${encodeURIComponent(strategy_id)}/live`,
+      body
+    );
+    return formatResult(data);
+  }
+);
+
+// ─── Tool 16: delete_strategy ───────────────────────────────────────────────
+
+server.tool(
+  "delete_strategy",
+  "Delete a saved auto-mining strategy by ID.",
+  {
+    strategy_id: z.string().describe("ID of the strategy to delete"),
+  },
+  async (params) => {
+    const data = await apiCall(
+      "DELETE",
+      `/auto-strategies/${encodeURIComponent(params.strategy_id)}`
     );
     return formatResult(data);
   }

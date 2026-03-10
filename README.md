@@ -107,7 +107,7 @@ Ask your AI agent:
 
 ## Features
 
-- 🔨 **12 MCP tools** covering every refinORE API endpoint
+- 🔨 **16 MCP tools** covering every refinORE API endpoint
 - ⛏️ **Full mining control** — start, stop, monitor sessions
 - 📊 **Real-time data** — balances, rewards, round info, history
 - 🤖 **Strategy automation** — create and launch reusable mining strategies
@@ -143,11 +143,13 @@ Ask your AI agent:
 | `get_balances` | Get SOL, ORE, USDC, stORE, and SKR balances for a wallet. |
 | `get_rewards` | Get unclaimed SOL, unrefined ORE, and bonus ORE rewards. |
 
-### Round Info
+### Round Info & Analytics
 
 | Tool | Description |
 |------|-------------|
 | `get_current_round` | Get current round number, time remaining, total deployed, motherlode, and EV. No auth required. |
+| `get_tile_stats` | Get hot/cold tile statistics from the last N rounds — which tiles win most/least. No auth required. |
+| `get_round_history` | Get your personal mining round history with full deployment details, results, and winnings. Supports pagination. |
 
 ### Strategies
 
@@ -156,6 +158,8 @@ Ask your AI agent:
 | `list_strategies` | List all saved auto-mining strategies. |
 | `create_strategy` | Create a new strategy with name, amount, squares, token, and risk settings. |
 | `start_strategy` | Launch an auto-mining session using a saved strategy. |
+| `live_edit_strategy` | **Live-edit a strategy mid-session** — change tiles, amounts, thresholds without stopping. Changes apply next round. |
+| `delete_strategy` | Delete a saved strategy by ID. |
 
 ### Staking
 
@@ -188,6 +192,37 @@ Ask your AI agent:
 | `miningToken` | string | Token to mine with |
 | `riskTolerance` | string | Risk level |
 
+### live_edit_strategy
+
+All parameters except `strategy_id` are optional — only send what you want to change.
+
+| Parameter | Type | Default | Description |
+|-----------|------|---------|-------------|
+| `strategy_id` | string | *required* | ID of the strategy to edit |
+| `sol_amount` | number | — | New SOL amount per round |
+| `num_squares` | number | — | New number of tiles (1-25) |
+| `tile_selection_mode` | enum | — | `optimal`, `random`, `custom`, `odd`, or `even` |
+| `custom_tiles` | number[] | — | Tile indices (0-24) when mode is `custom` |
+| `skip_last_winning_square` | boolean | — | Skip the tile that won last round |
+| `mining_token` | enum | — | `SOL`, `USDC`, `ORE`, `stORE`, or `SKR` |
+| `deployment_timing` | number | — | Deploy timing in seconds (30-55) |
+| `motherlode_threshold` | number | — | Min motherlode ORE to deploy |
+| `max_sol_deployed_threshold` | number | — | Max total SOL deployed before skipping |
+
+### get_tile_stats
+
+| Parameter | Type | Default | Description |
+|-----------|------|---------|-------------|
+| `limit` | number | `100` | Number of rounds to analyze (10-500) |
+
+### get_round_history
+
+| Parameter | Type | Default | Description |
+|-----------|------|---------|-------------|
+| `limit` | number | `50` | Number of rounds to return (1-500) |
+| `offset` | number | `0` | Offset for pagination |
+| `session_id` | string | — | Filter to a specific session (optional) |
+
 ---
 
 ## Example Conversations
@@ -211,6 +246,21 @@ Ask your AI agent:
 > **You:** Create a conservative strategy called "Safe Miner" with 0.01 SOL on 10 squares
 >
 > **AI:** Strategy "Safe Miner" created with ID `strat-456`. 0.01 SOL, 10 squares, SOL token, low risk. You can start it anytime with start_strategy.
+
+### Check hot/cold tiles
+> **You:** Which tiles are hot right now?
+>
+> **AI:** Looking at the last 100 rounds, tiles 12, 7, and 3 are the hottest with 8, 7, and 6 wins respectively. Coldest are tiles 20 and 14 with only 1 win each.
+
+### Live-edit strategy mid-session
+> **You:** Switch my strategy to custom tiles 0, 5, 12, 18, 24 and bump to 0.02 SOL
+>
+> **AI:** Done! Updated your strategy with custom tiles [0, 5, 12, 18, 24] and 0.02 SOL per round. Your active session will pick up these changes on the next deployment — no restart needed.
+
+### Review round history
+> **You:** Show me my last 10 rounds
+>
+> **AI:** Here are your last 10 rounds — you won 4/10 (40% win rate). Total deployed: 0.05 SOL, total won: 0.032 SOL + 1.2 ORE. Best round was #145,901 where you hit tile 12 for 0.012 SOL.
 
 ---
 
