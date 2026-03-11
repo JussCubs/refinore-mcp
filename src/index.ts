@@ -111,9 +111,9 @@ server.tool(
       .default("less-risky")
       .describe("Risk tolerance: 'degen' (always deploy), 'risky' (deploy most rounds), 'less-risky' (skip negative EV), 'positive-ev' (only deploy +EV)"),
     tile_selection_mode: z
-      .enum(["optimal", "random", "custom", "odd", "even"])
+      .enum(["optimal", "random", "custom", "odd", "even", "hot", "cold"])
       .default("optimal")
-      .describe("Tile selection strategy: 'optimal' (AI-selected), 'random', 'custom' (specify tiles), 'odd' (odd-numbered tiles), 'even' (even-numbered tiles)"),
+      .describe("Tile selection strategy: 'optimal' (AI-selected lowest competition), 'random', 'custom' (specify tiles), 'odd', 'even', 'hot' (tiles that win most often), 'cold' (tiles that win least often)"),
   },
   async (params) => {
     const data = await apiCall("POST", "/mining/start", {
@@ -359,13 +359,13 @@ server.tool(
     sol_amount: z.number().optional().describe("New SOL amount per round"),
     num_squares: z.number().optional().describe("New number of tiles (1-25)"),
     tile_selection_mode: z
-      .enum(["optimal", "random", "custom", "odd", "even"])
+      .enum(["optimal", "random", "custom", "odd", "even", "hot", "cold"])
       .optional()
       .describe("New tile selection mode"),
     custom_tiles: z
       .array(z.number())
       .optional()
-      .describe("Custom tile indices (0-24) when mode is 'custom'"),
+      .describe("Custom tile indices 0-24 (API uses 0-indexed; tile 1 in the UI = index 0, tile 25 = index 24)"),
     skip_last_winning_square: z
       .boolean()
       .optional()
@@ -430,8 +430,8 @@ server.tool(
   {
     sol_amount: z.number().optional().describe("New SOL amount per round"),
     num_squares: z.number().optional().describe("New number of tiles (1-25)"),
-    tile_selection_mode: z.enum(["optimal", "random", "custom", "odd", "even"]).optional().describe("Tile selection strategy"),
-    custom_tiles: z.array(z.number()).optional().describe("Custom tile indices (0-24) when mode is 'custom'"),
+    tile_selection_mode: z.enum(["optimal", "random", "custom", "odd", "even", "hot", "cold"]).optional().describe("Tile selection strategy"),
+    custom_tiles: z.array(z.number()).optional().describe("Custom tile indices 0-24 (API uses 0-indexed; tile 1 in the UI = index 0, tile 25 = index 24)"),
     skip_last_winning_square: z.boolean().optional().describe("Skip the tile that won last round"),
     mining_token: z.enum(["SOL", "USDC", "ORE", "stORE", "SKR"]).optional().describe("Mining token"),
     deployment_timing_seconds: z.number().optional().describe("Deployment timing in seconds (0-60)"),
