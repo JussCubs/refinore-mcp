@@ -107,12 +107,12 @@ Ask your AI agent:
 
 ## Features
 
-- 🔨 **16 MCP tools** covering every refinORE API endpoint
+- 🔨 **21 MCP tools** covering every refinORE API endpoint
 - ⛏️ **Full mining control** — start, stop, monitor sessions
 - 📊 **Real-time data** — balances, rewards, round info, history
 - 🤖 **Strategy automation** — create and launch reusable mining strategies
 - 💎 **Multi-token support** — SOL, USDC, ORE, stORE, SKR
-- 🛡️ **Risk management** — low, medium, high risk tolerance settings
+- 🛡️ **Risk management** — degen, risky, less-risky, positive-ev risk tolerance settings
 - 📈 **Staking info** — stORE balances, APR, pending rewards
 - ⚡ **Zero config** — just set your API key and go
 - 🔒 **Secure** — API key stays in your local environment, never transmitted to third parties
@@ -135,6 +135,7 @@ Ask your AI agent:
 | `stop_mining` | Stop an active mining session. Optionally specify a session ID. |
 | `get_mining_session` | Get current active mining session status, stats, and round info. |
 | `get_mining_history` | Get past mining rounds with results and earnings. |
+| `edit_session` | **Live-edit an active manual mining session** — change amount, tiles, risk, token without stopping. Changes apply next round. |
 
 ### Wallet & Rewards
 
@@ -167,6 +168,15 @@ Ask your AI agent:
 |------|-------------|
 | `get_staking_info` | Get stORE balance, current APR, and pending staking rewards for a wallet. |
 
+### DCA & Limit Orders
+
+| Tool | Description |
+|------|-------------|
+| `create_swap_order` | Create a DCA or limit order for automated token swaps (e.g., DCA into ORE with SOL). |
+| `list_swap_orders` | List all active DCA and limit orders. |
+| `delete_swap_order` | Cancel/delete an active swap order by ID. |
+| `get_swap_history` | Get execution history for completed and partially-filled swap orders. |
+
 ---
 
 ## Tool Parameters
@@ -179,7 +189,7 @@ Ask your AI agent:
 | `sol_amount` | number | `0.01` | Amount to deploy per round |
 | `num_squares` | number | `15` | Number of grid squares to mine |
 | `mining_token` | enum | `"SOL"` | `SOL`, `USDC`, `ORE`, `stORE`, or `SKR` |
-| `risk_tolerance` | enum | `"medium"` | `low`, `medium`, or `high` |
+| `risk_tolerance` | enum | `"less-risky"` | `degen`, `risky`, `less-risky`, or `positive-ev` |
 | `tile_selection_mode` | enum | `"optimal"` | `optimal`, `random`, or `custom` |
 
 ### create_strategy

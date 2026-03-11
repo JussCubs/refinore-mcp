@@ -72,7 +72,7 @@ function formatResult(data: unknown): { content: Array<{ type: "text"; text: str
 
 const server = new McpServer({
   name: "refinore-mcp",
-  version: "1.1.0",
+  version: "1.2.0",
 });
 
 // ─── Tool 1: get_account_info ────────────────────────────────────────────────
@@ -107,13 +107,13 @@ server.tool(
       .default("SOL")
       .describe("Token to use for mining (default: SOL)"),
     risk_tolerance: z
-      .enum(["low", "medium", "high"])
-      .default("medium")
-      .describe("Risk tolerance level (default: medium)"),
+      .enum(["degen", "risky", "less-risky", "positive-ev"])
+      .default("less-risky")
+      .describe("Risk tolerance: 'degen' (always deploy), 'risky' (deploy most rounds), 'less-risky' (skip negative EV), 'positive-ev' (only deploy +EV)"),
     tile_selection_mode: z
-      .enum(["optimal", "random", "custom"])
+      .enum(["optimal", "random", "custom", "odd", "even"])
       .default("optimal")
-      .describe("Tile selection strategy (default: optimal)"),
+      .describe("Tile selection strategy: 'optimal' (AI-selected), 'random', 'custom' (specify tiles), 'odd' (odd-numbered tiles), 'even' (even-numbered tiles)"),
   },
   async (params) => {
     const data = await apiCall("POST", "/mining/start", {
@@ -189,7 +189,7 @@ server.tool(
   async (params) => {
     const data = await apiCall(
       "GET",
-      `/wallet/balances?wallet_address=${encodeURIComponent(params.wallet_address)}`
+      `/wallet/balances?wallet=${encodeURIComponent(params.wallet_address)}`
     );
     return formatResult(data);
   }
@@ -206,7 +206,7 @@ server.tool(
   async (params) => {
     const data = await apiCall(
       "GET",
-      `/rewards?wallet_address=${encodeURIComponent(params.wallet_address)}`
+      `/rewards?wallet=${encodeURIComponent(params.wallet_address)}`
     );
     return formatResult(data);
   }
@@ -249,8 +249,9 @@ server.tool(
       .string()
       .describe("Token to mine with (SOL, USDC, ORE, stORE, SKR)"),
     riskTolerance: z
-      .string()
-      .describe("Risk tolerance (low, medium, high)"),
+      .enum(["degen", "risky", "less-risky", "positive-ev"])
+      .default("less-risky")
+      .describe("Risk tolerance: 'degen' (always deploy), 'risky' (deploy most rounds), 'less-risky' (skip negative EV), 'positive-ev' (only deploy +EV)"),
   },
   async (params) => {
     const data = await apiCall("POST", "/auto-strategies", {
@@ -291,7 +292,7 @@ server.tool(
   async (params) => {
     const data = await apiCall(
       "GET",
-      `/staking/info?wallet_address=${encodeURIComponent(params.wallet_address)}`
+      `/staking/info?wallet=${encodeURIComponent(params.wallet_address)}`
     );
     return formatResult(data);
   }
@@ -417,6 +418,99 @@ server.tool(
       "DELETE",
       `/auto-strategies/${encodeURIComponent(params.strategy_id)}`
     );
+    return formatResult(data);
+  }
+);
+
+// ─── Tool 17: edit_session ───────────────────────────────────────────────────
+
+server.tool(
+  "edit_session",
+  "Live-edit your active mining session between rounds WITHOUT stopping/restarting. Only send fields you want to change. For strategy-based sessions, use live_edit_strategy instead.",
+  {
+    sol_amount: z.number().optional().describe("New SOL amount per round"),
+    num_squares: z.number().optional().describe("New number of tiles (1-25)"),
+    tile_selection_mode: z.enum(["optimal", "random", "custom", "odd", "even"]).optional().describe("Tile selection strategy"),
+    custom_tiles: z.array(z.number()).optional().describe("Custom tile indices (0-24) when mode is 'custom'"),
+    skip_last_winning_square: z.boolean().optional().describe("Skip the tile that won last round"),
+    mining_token: z.enum(["SOL", "USDC", "ORE", "stORE", "SKR"]).optional().describe("Mining token"),
+    deployment_timing_seconds: z.number().optional().describe("Deployment timing in seconds (0-60)"),
+    risk_tolerance: z.enum(["degen", "risky", "less-risky", "positive-ev"]).optional().describe("Risk tolerance level"),
+    custom_ev_threshold: z.number().optional().describe("Custom EV threshold percentage"),
+    motherlode_threshold: z.number().optional().describe("Minimum motherlode ORE to deploy"),
+    max_sol_deployed_threshold: z.number().optional().describe("Max total SOL deployed before skipping"),
+  },
+  async (params) => {
+    const body: Record<string, unknown> = {};
+    for (const [key, value] of Object.entries(params)) {
+      if (value !== undefined) body[key] = value;
+    }
+    const data = await apiCall("PATCH", "/mining/session/edit", body);
+    return formatResult(data);
+  }
+);
+
+// ─── Tool 18: create_swap_order ─────────────────────────────────────────────
+
+server.tool(
+  "create_swap_order",
+  "Create a DCA (dollar-cost averaging) or limit order for automated token swaps. DCA orders execute at regular intervals. Limit orders execute when price conditions are met.",
+  {
+    name: z.string().describe("Name for this order (e.g., 'Daily ORE Buy')"),
+    order_type: z.enum(["dca", "limit"]).describe("Order type: 'dca' for recurring or 'limit' for price-triggered"),
+    swap_type: z.enum(["buy", "sell"]).describe("'buy' to buy ORE, 'sell' to sell ORE"),
+    trigger_field: z.enum(["ore_price", "time"]).describe("What triggers execution: 'ore_price' or 'time'"),
+    trigger_operator: z.enum(["gt", "gte", "lt", "lte", "eq"]).describe("Comparison operator for trigger"),
+    trigger_value: z.number().optional().default(0).describe("Trigger value (price in USD or time in seconds)"),
+    ore_amount: z.number().describe("Amount of ORE to buy/sell per execution"),
+    execution_timing: z.number().optional().default(30).describe("When in the round to execute (0-60 seconds)"),
+    repeat_enabled: z.boolean().optional().default(false).describe("Enable recurring execution"),
+    repeat_interval_rounds: z.number().optional().default(1).describe("Rounds between executions (minimum 1)"),
+    max_executions: z.number().optional().describe("Maximum total executions (null = unlimited)"),
+  },
+  async (params) => {
+    const data = await apiCall("POST", "/auto-swap-orders", params);
+    return formatResult(data);
+  }
+);
+
+// ─── Tool 19: list_swap_orders ──────────────────────────────────────────────
+
+server.tool(
+  "list_swap_orders",
+  "List all your auto swap orders (DCA and limit orders).",
+  {},
+  async () => {
+    const data = await apiCall("GET", "/auto-swap-orders");
+    return formatResult(data);
+  }
+);
+
+// ─── Tool 20: delete_swap_order ─────────────────────────────────────────────
+
+server.tool(
+  "delete_swap_order",
+  "Delete an auto swap order by ID.",
+  {
+    order_id: z.string().describe("The swap order ID to delete"),
+  },
+  async (params) => {
+    const data = await apiCall("DELETE", `/auto-swap-orders/${encodeURIComponent(params.order_id)}`);
+    return formatResult(data);
+  }
+);
+
+// ─── Tool 21: get_swap_history ──────────────────────────────────────────────
+
+server.tool(
+  "get_swap_history",
+  "Get your swap operations history — shows executed DCA buys, limit order fills, and swap results.",
+  {
+    limit: z.number().optional().default(10).describe("Number of operations to return"),
+    offset: z.number().optional().default(0).describe("Pagination offset"),
+  },
+  async (params) => {
+    const data = await apiCall("GET", `/auto-swap-orders/history?limit=${params.limit}&offset=${params.offset}`);
     return formatResult(data);
   }
 );
