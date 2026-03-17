@@ -157,9 +157,10 @@ Ask your AI agent:
 | Tool | Description |
 |------|-------------|
 | `list_strategies` | List all saved auto-mining strategies. |
-| `create_strategy` | Create a new strategy with name, amount, squares, token, and risk settings. |
+| `create_strategy` | Create a new strategy with name, defaults, and optional deterministic custom strategy script. |
+| `validate_strategy_script` | Validate a deterministic custom strategy script before saving it. |
 | `start_strategy` | Launch an auto-mining session using a saved strategy. |
-| `live_edit_strategy` | **Live-edit a strategy mid-session** — change tiles, amounts, thresholds without stopping. Changes apply next round. |
+| `live_edit_strategy` | **Live-edit a strategy mid-session** — change tiles, amounts, thresholds, or script logic without stopping. Changes apply next round. |
 | `delete_strategy` | Delete a saved strategy by ID. |
 
 ### Staking
@@ -197,10 +198,18 @@ Ask your AI agent:
 | Parameter | Type | Description |
 |-----------|------|-------------|
 | `name` | string | Name for the strategy |
-| `solAmount` | number | Amount to deploy per round |
-| `numSquares` | number | Number of grid squares |
-| `miningToken` | string | Token to mine with |
+| `solAmount` | number | Default amount to deploy per round |
+| `numSquares` | number | Default number of grid squares |
+| `miningToken` | string | Default token to mine with |
 | `riskTolerance` | string | Risk level |
+| `strategyScriptEnabled` | boolean | Enable deterministic strategy script execution |
+| `strategyScript` | object | Custom per-round strategy script JSON |
+
+### validate_strategy_script
+
+| Parameter | Type | Description |
+|-----------|------|-------------|
+| `strategyScript` | object | Custom strategy script JSON to validate |
 
 ### live_edit_strategy
 
@@ -218,6 +227,8 @@ All parameters except `strategy_id` are optional — only send what you want to 
 | `deployment_timing` | number | — | Deploy timing in seconds (30-55) |
 | `motherlode_threshold` | number | — | Min motherlode ORE to deploy |
 | `max_sol_deployed_threshold` | number | — | Max total SOL deployed before skipping |
+| `strategy_script_enabled` | boolean | — | Enable or disable custom strategy script execution |
+| `strategy_script` | object | — | Custom per-round strategy script JSON |
 
 ### get_tile_stats
 

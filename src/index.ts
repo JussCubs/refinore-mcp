@@ -240,18 +240,27 @@ server.tool(
 
 server.tool(
   "create_strategy",
-  "Create a new auto-mining strategy with a name and mining parameters. Strategies can be started later with start_strategy.",
+  "Create a new auto-mining strategy with a name and mining parameters. Supports deterministic custom strategy scripts that run every round.",
   {
     name: z.string().describe("Name for this strategy"),
-    solAmount: z.number().describe("Amount to deploy per round"),
-    numSquares: z.number().describe("Number of grid squares to mine"),
+    solAmount: z.number().optional().describe("Default amount to deploy per round"),
+    numSquares: z.number().optional().describe("Default number of grid squares to mine"),
     miningToken: z
       .string()
+      .optional()
       .describe("Token to mine with (SOL, USDC, ORE, stORE, SKR)"),
     riskTolerance: z
       .enum(["degen", "risky", "less-risky", "positive-ev"])
       .default("less-risky")
       .describe("Risk tolerance: 'degen' (always deploy), 'risky' (deploy most rounds), 'less-risky' (skip negative EV), 'positive-ev' (only deploy +EV)"),
+    strategyScriptEnabled: z
+      .boolean()
+      .optional()
+      .describe("Enable deterministic strategyScript execution"),
+    strategyScript: z
+      .unknown()
+      .optional()
+      .describe("Custom strategy script JSON. Validate it first with validate_strategy_script."),
   },
   async (params) => {
     const data = await apiCall("POST", "/auto-strategies", {
@@ -260,6 +269,22 @@ server.tool(
       numSquares: params.numSquares,
       miningToken: params.miningToken,
       riskTolerance: params.riskTolerance,
+    });
+    return formatResult(data);
+  }
+);
+
+// ─── Tool 10b: validate_strategy_script ─────────────────────────────────────
+
+server.tool(
+  "validate_strategy_script",
+  "Validate a deterministic custom strategy script before saving it. Probes external JSON sources and returns path-based validation errors.",
+  {
+    strategyScript: z.unknown().describe("Custom strategy script JSON to validate"),
+  },
+  async (params) => {
+    const data = await apiCall("POST", "/auto-strategies/validate-script", {
+      strategyScript: params.strategyScript,
     });
     return formatResult(data);
   }
@@ -353,7 +378,7 @@ server.tool(
 
 server.tool(
   "live_edit_strategy",
-  "Live-edit a mining strategy between rounds WITHOUT stopping the session. Only send the fields you want to change — changes take effect on the next deployment round automatically. Perfect for dynamically adjusting tiles, amounts, or thresholds mid-session.",
+  "Live-edit a mining strategy between rounds WITHOUT stopping the session. Only send the fields you want to change — changes take effect on the next deployment round automatically. Supports updating deterministic custom strategy scripts.",
   {
     strategy_id: z.string().describe("ID of the strategy to edit"),
     sol_amount: z.number().optional().describe("New SOL amount per round"),
@@ -386,6 +411,14 @@ server.tool(
       .number()
       .optional()
       .describe("Max total SOL deployed before skipping"),
+    strategy_script_enabled: z
+      .boolean()
+      .optional()
+      .describe("Enable or disable custom strategy script execution"),
+    strategy_script: z
+      .unknown()
+      .optional()
+      .describe("Custom strategy script JSON. Validate it first with validate_strategy_script."),
   },
   async (params) => {
     const { strategy_id, ...updates } = params;
