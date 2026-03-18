@@ -28,11 +28,15 @@ async function apiCall(
   const url = `${API_URL}${path}`;
   const headers: Record<string, string> = {
     "Content-Type": "application/json",
-    "User-Agent": "refinore-mcp/1.0.0",
+    "User-Agent": "refinore-mcp/1.3.0",
   };
 
   if (API_KEY) {
-    headers["Authorization"] = `Bearer ${API_KEY}`;
+    if (API_KEY.startsWith("rsk_")) {
+      headers["x-api-key"] = API_KEY;
+    } else {
+      headers["Authorization"] = `Bearer ${API_KEY}`;
+    }
   }
 
   const options: RequestInit = { method, headers };
@@ -72,7 +76,7 @@ function formatResult(data: unknown): { content: Array<{ type: "text"; text: str
 
 const server = new McpServer({
   name: "refinore-mcp",
-  version: "1.2.0",
+  version: "1.3.0",
 });
 
 // ─── Tool 1: get_account_info ────────────────────────────────────────────────
@@ -483,7 +487,41 @@ server.tool(
   }
 );
 
-// ─── Tool 18: create_swap_order ─────────────────────────────────────────────
+// ─── Tool 18: quote_swap ────────────────────────────────────────────────────
+
+server.tool(
+  "quote_swap",
+  "Preview a direct swap quote between any supported refinORE wallet tokens: SOL, USDC, ORE, stORE, and SKR.",
+  {
+    input_token: z.enum(["SOL", "USDC", "ORE", "stORE", "SKR"]).describe("Token to swap from"),
+    output_token: z.enum(["SOL", "USDC", "ORE", "stORE", "SKR"]).describe("Token to receive"),
+    amount: z.number().describe("Amount of the input token to swap"),
+    max_slippage_bps: z.number().optional().default(300).describe("Max slippage in basis points"),
+  },
+  async (params) => {
+    const data = await apiCall("POST", "/swaps/quote", params);
+    return formatResult(data);
+  }
+);
+
+// ─── Tool 19: execute_swap ──────────────────────────────────────────────────
+
+server.tool(
+  "execute_swap",
+  "Execute a direct token swap immediately using the authenticated refinORE wallet.",
+  {
+    input_token: z.enum(["SOL", "USDC", "ORE", "stORE", "SKR"]).describe("Token to swap from"),
+    output_token: z.enum(["SOL", "USDC", "ORE", "stORE", "SKR"]).describe("Token to receive"),
+    amount: z.number().describe("Amount of the input token to swap"),
+    max_slippage_bps: z.number().optional().default(300).describe("Max slippage in basis points"),
+  },
+  async (params) => {
+    const data = await apiCall("POST", "/swaps/execute", params);
+    return formatResult(data);
+  }
+);
+
+// ─── Tool 20: create_swap_order ─────────────────────────────────────────────
 
 server.tool(
   "create_swap_order",
@@ -507,7 +545,7 @@ server.tool(
   }
 );
 
-// ─── Tool 19: list_swap_orders ──────────────────────────────────────────────
+// ─── Tool 21: list_swap_orders ──────────────────────────────────────────────
 
 server.tool(
   "list_swap_orders",
@@ -519,7 +557,7 @@ server.tool(
   }
 );
 
-// ─── Tool 20: delete_swap_order ─────────────────────────────────────────────
+// ─── Tool 22: delete_swap_order ─────────────────────────────────────────────
 
 server.tool(
   "delete_swap_order",
@@ -533,7 +571,7 @@ server.tool(
   }
 );
 
-// ─── Tool 21: get_swap_history ──────────────────────────────────────────────
+// ─── Tool 23: get_swap_history ──────────────────────────────────────────────
 
 server.tool(
   "get_swap_history",

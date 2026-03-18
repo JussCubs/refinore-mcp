@@ -99,6 +99,7 @@ Ask your AI agent:
 
 - *"What's my refinORE wallet address?"*
 - *"Start mining ORE with 0.02 SOL on 10 squares"*
+- *"Swap 2 stORE to SOL"*
 - *"Check my mining session status"*
 - *"What are my current balances?"*
 - *"Show me the current round info"*
@@ -107,7 +108,7 @@ Ask your AI agent:
 
 ## Features
 
-- 🔨 **21 MCP tools** covering every refinORE API endpoint
+- 🔨 **23 MCP tools** covering mining, strategies, direct swaps, and automation
 - ⛏️ **Full mining control** — start, stop, monitor sessions
 - 📊 **Real-time data** — balances, rewards, round info, history
 - 🤖 **Strategy automation** — create and launch reusable mining strategies
@@ -173,10 +174,12 @@ Ask your AI agent:
 
 | Tool | Description |
 |------|-------------|
+| `quote_swap` | Preview a direct swap quote between any supported wallet tokens. |
+| `execute_swap` | Execute a direct token swap immediately. |
 | `create_swap_order` | Create a DCA or limit order for automated token swaps (e.g., DCA into ORE with SOL). |
 | `list_swap_orders` | List all active DCA and limit orders. |
 | `delete_swap_order` | Cancel/delete an active swap order by ID. |
-| `get_swap_history` | Get execution history for completed and partially-filled swap orders. |
+| `get_swap_history` | Get execution history for direct swaps plus completed and partially-filled swap orders. |
 
 ---
 
@@ -204,6 +207,15 @@ Ask your AI agent:
 | `riskTolerance` | string | Risk level |
 | `strategyScriptEnabled` | boolean | Enable deterministic strategy script execution |
 | `strategyScript` | object | Custom per-round strategy script JSON |
+
+### quote_swap / execute_swap
+
+| Parameter | Type | Description |
+|-----------|------|-------------|
+| `input_token` | enum | `SOL`, `USDC`, `ORE`, `stORE`, or `SKR` |
+| `output_token` | enum | `SOL`, `USDC`, `ORE`, `stORE`, or `SKR` |
+| `amount` | number | Amount of the input token to swap |
+| `max_slippage_bps` | number | Max slippage in basis points. Default: `300` |
 
 ### validate_strategy_script
 
